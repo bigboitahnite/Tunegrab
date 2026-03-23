@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TUNEGRAB</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0a; --surface: #111; --surface2: #1a1a1a; --border: #222;
+    --accent: #e8ff4a; --accent2: #ff4a6e; --spotify: #1DB954; --apple: #fc3c44;
+    --text: #f0f0f0; --muted: #555;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::after {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(232,255,74,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(232,255,74,0.025) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: 0;
+  }
+  .wrap { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 0 18px 80px; }
+
+  header { padding: 40px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 36px; }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: clamp(48px,10vw,88px); color: var(--accent); letter-spacing: 2px; line-height: 1; text-shadow: 0 0 40px rgba(232,255,74,0.25); }
+  .tagline { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 2px; margin-bottom: 8px; }
+  .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--spotify); margin-right: 6px; box-shadow: 0 0 6px var(--spotify); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+  .connected { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--spotify); margin-top: 10px; }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 24px; }
+  .panel h2 { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1px; color: var(--accent); margin-bottom: 18px; }
+
+  .input-row { display: flex; gap: 10px; margin-bottom: 14px; }
+  input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; padding: 12px 14px;
+    outline: none; transition: border-color .2s;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(232,255,74,.07); }
+  input::placeholder { color: #2a2a2a; }
+
+  .btn { background: var(--accent); color: #000; border: none; border-radius: 5px; padding: 12px 22px; font-family: 'Bebas Neue', sans-serif; font-size: 17px; letter-spacing: 1px; cursor: pointer; transition: background .15s, transform .1s; white-space: nowrap; }
+  .btn:hover { background: #f0ff60; }
+  .btn:active { transform: scale(.97); }
+  .btn:disabled { background: #2a2a2a; color: #444; cursor: not-allowed; transform: none; }
+
+  .badges { display: flex; gap: 8px; align-items: center; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); }
+  .badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; }
+  .badge.sp { background: rgba(29,185,84,.12); color: var(--spotify); border: 1px solid rgba(29,185,84,.25); }
+  .badge.ap { background: rgba(252,60,68,.10); color: var(--apple); border: 1px solid rgba(252,60,68,.25); }
+
+  #track-section { display: none; }
+  .track-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+  .track-header h2 { font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 1px; }
+  .track-header h2 span { color: var(--accent); }
+
+  .fmt-row { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+  .fmt-label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-right: 4px; }
+  .fmt-btn { padding: 6px 14px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); font-family: 'DM Mono', monospace; font-size: 11px; cursor: pointer; transition: all .15s; letter-spacing: 1px; }
+  .fmt-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(232,255,74,.07); }
+
+  .progress-wrap { height: 2px; background: var(--border); border-radius: 2px; margin-bottom: 18px; display: none; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width .3s; box-shadow: 0 0 8px rgba(232,255,74,.5); }
+
+  .track-list { display: flex; flex-direction: column; gap: 5px; }
+  .track-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; animation: up .3s ease both; transition: border-color .15s; }
+  .track-card:hover { border-color: #2e2e2e; }
+  @keyframes up { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:none; } }
+  .tnum  { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); width: 22px; text-align: right; flex-shrink: 0; }
+  .tart  { width: 40px; height: 40px; border-radius: 3px; background: var(--surface2); flex-shrink: 0; object-fit: cover; }
+  .tinfo { flex: 1; min-width: 0; }
+  .tname { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+  .tmeta { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tdur  { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); flex-shrink: 0; }
+  .tdl   { background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); padding: 6px 12px; font-family: 'DM Mono', monospace; font-size: 11px; cursor: pointer; transition: all .15s; flex-shrink: 0; white-space: nowrap; }
+  .tdl:hover   { border-color: var(--accent); color: var(--accent); background: rgba(232,255,74,.06); }
+  .tdl.loading { color: #333; border-color: #222; cursor: wait; }
+  .tdl.done    { border-color: var(--spotify); color: var(--spotify); }
+  .tdl.error   { border-color: var(--accent2); color: var(--accent2); }
+
+  #log { display:none; background: var(--surface); border:1px solid var(--border); border-radius:6px; padding:14px; margin-top:18px; font-family:'DM Mono',monospace; font-size:11px; color:#555; max-height:140px; overflow-y:auto; line-height:1.8; }
+  #log .ok   { color: var(--spotify); }
+  #log .err  { color: var(--accent2); }
+  #log .info { color: #888; }
+
+  .toast { position:fixed; bottom:24px; right:20px; background:var(--surface); border:1px solid var(--accent); border-radius:6px; padding:12px 18px; font-size:12px; font-family:'DM Mono',monospace; color:var(--accent); z-index:99; transform:translateY(70px); opacity:0; transition:all .3s; max-width:300px; }
+  .toast.show { transform:translateY(0); opacity:1; }
+
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .spin { display:inline-block; width:12px; height:12px; border:2px solid #333; border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:5px; }
+  ::-webkit-scrollbar { width:3px; } ::-webkit-scrollbar-thumb { background:#2a2a2a; border-radius:2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="tagline">// your music. your device.</div>
+    <div class="logo">TUNEGRAB</div>
+    <div class="connected"><span class="status-dot"></span>Ready</div>
+  </header>
+
+  <div class="panel">
+    <h2>LOAD PLAYLIST</h2>
+    <div class="input-row">
+      <input type="text" id="playlist-url" placeholder="Paste your Spotify or Apple Music playlist link…"/>
+      <button class="btn" id="fetch-btn" onclick="fetchPlaylist()">FETCH</button>
+    </div>
+    <div class="badges">
+      SUPPORTS:
+      <span class="badge sp">♫ Spotify</span>
+      <span class="badge ap"> Apple Music</span>
+    </div>
+  </div>
+
+  <div id="track-section">
+    <div class="track-header">
+      <h2 id="pl-title">PLAYLIST <span>—</span></h2>
+      <button class="btn" id="dl-all-btn" onclick="downloadAll()">↓ DOWNLOAD ALL</button>
+    </div>
+    <div class="fmt-row">
+      <span class="fmt-label">FORMAT:</span>
+      <button class="fmt-btn active" id="fmt-mp3" onclick="setFmt('mp3')">MP3</button>
+      <button class="fmt-btn"        id="fmt-wav" onclick="setFmt('wav')">WAV</button>
+    </div>
+    <div class="progress-wrap" id="prog-wrap">
+      <div class="progress-bar" id="prog-bar"></div>
+    </div>
+    <div class="track-list" id="track-list"></div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SB_URL  = "https://vmsfcmzlpwfeanumdcal.supabase.co";
+const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtc2ZjbXpscHdmZWFudW1kY2FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjcxNzIsImV4cCI6MjA4OTgwMzE3Mn0.8X07xfsdOTpntTKnmNfwEw1VL6JGbPmxfFG-z-v8cmk";
+
+let tracks = [];
+let fmt = 'mp3';
+
+async function callFn(fn, body) {
+  const res = await fetch(`${SB_URL}/functions/v1/${fn}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SB_ANON}` },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+function setFmt(f) {
+  fmt = f;
+  document.getElementById('fmt-mp3').classList.toggle('active', f === 'mp3');
+  document.getElementById('fmt-wav').classList.toggle('active', f === 'wav');
+  document.querySelectorAll('.tdl:not(.done):not(.error):not(.loading)').forEach(b => b.textContent = `↓ ${f.toUpperCase()}`);
+}
+
+async function fetchPlaylist() {
+  const url = document.getElementById('playlist-url').value.trim();
+  if (!url) { toast('Paste a playlist link first'); return; }
+  const btn = document.getElementById('fetch-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>';
+  try {
+    if (url.includes('spotify.com'))       await fetchSpotify(url);
+    else if (url.includes('music.apple.com')) await fetchApple(url);
+    else throw new Error('Please use a Spotify or Apple Music playlist URL');
+  } catch(e) {
+    toast(e.message, true);
+    addLog(e.message, 'err');
+  }
+  btn.disabled = false;
+  btn.textContent = 'FETCH';
+}
+
+async function fetchSpotify(url) {
+  const match = url.match(/playlist\/([a-zA-Z0-9]+)/);
+  if (!match) throw new Error('Invalid Spotify playlist URL');
+  const playlistId = match[1];
+
+  addLog('Authenticating with Spotify…', 'info');
+  const { access_token } = await callFn('spotify-proxy', { action: 'get_token' });
+
+  addLog('Loading playlist…', 'info');
+  const { name, total } = await callFn('spotify-proxy', { action: 'get_playlist', playlistId, token: access_token });
+  addLog(`Found "${name}" — ${total} tracks`, 'info');
+
+  let allTracks = [], offset = 0;
+  while (true) {
+    const { tracks: batch, hasMore } = await callFn('spotify-proxy', { action: 'get_tracks', playlistId, token: access_token, offset });
+    allTracks = allTracks.concat(batch);
+    if (!hasMore) break;
+    offset += 50;
+  }
+  addLog(`✓ Loaded ${allTracks.length} tracks`, 'ok');
+  renderTracks(allTracks, name);
+}
+
+async function fetchApple(url) {
+  addLog('Loading Apple Music playlist…', 'info');
+  const { tracks: t, name } = await callFn('apple-proxy', { url });
+  addLog(`✓ Loaded ${t.length} tracks`, 'ok');
+  renderTracks(t, name);
+}
+
+function renderTracks(data, name) {
+  tracks = data;
+  document.getElementById('track-section').style.display = 'block';
+  document.getElementById('pl-title').innerHTML = `<span>${esc(name).toUpperCase()}</span> — ${tracks.length} TRACKS`;
+  const list = document.getElementById('track-list');
+  list.innerHTML = '';
+  tracks.forEach((t, i) => {
+    const d = document.createElement('div');
+    d.className = 'track-card';
+    d.style.animationDelay = Math.min(i * 0.025, 0.5) + 's';
+    d.innerHTML = `
+      <div class="tnum">${i+1}</div>
+      ${t.art ? `<img class="tart" src="${t.art}" loading="lazy"/>` : '<div class="tart"></div>'}
+      <div class="tinfo">
+        <div class="tname">${esc(t.name)}</div>
+        <div class="tmeta">${esc(t.artist)}${t.album?' · '+esc(t.album):''}${t.year?' · '+t.year:''}</div>
+      </div>
+      <div class="tdur">${t.duration||''}</div>
+      <button class="tdl" id="dl-${i}" onclick="dlTrack(${i})">↓ ${fmt.toUpperCase()}</button>
+    `;
+    list.appendChild(d);
+  });
+  document.getElementById('log').style.display = 'block';
+}
+
+async function dlTrack(i) {
+  const t = tracks[i];
+  const btn = document.getElementById(`dl-${i}`);
+  btn.className = 'tdl loading';
+  btn.innerHTML = '<span class="spin"></span>';
+  try {
+    addLog(`Searching: ${t.artist} – ${t.name}`, 'info');
+    const { link } = await callFn('youtube-proxy', { artist: t.artist, title: t.name });
+    const a = document.createElement('a');
+    a.href = link; a.download = `${safe(t.artist)} - ${safe(t.name)}.${fmt}`; a.target = '_blank';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    btn.className = 'tdl done'; btn.textContent = '✓ DONE';
+    addLog(`✓ ${t.artist} – ${t.name}`, 'ok');
+  } catch(e) {
+    btn.className = 'tdl error'; btn.textContent = '✗ RETRY';
+    addLog(`✗ ${t.name}: ${e.message}`, 'err');
+  }
+}
+
+async function downloadAll() {
+  if (!tracks.length) return;
+  const btn = document.getElementById('dl-all-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> DOWNLOADING…';
+  document.getElementById('prog-wrap').style.display = 'block';
+  const bar = document.getElementById('prog-bar');
+  for (let i = 0; i < tracks.length; i++) {
+    if (document.getElementById(`dl-${i}`)?.classList.contains('done')) continue;
+    await dlTrack(i);
+    bar.style.width = Math.round(((i+1)/tracks.length)*100) + '%';
+    await sleep(1400);
+  }
+  btn.disabled = false; btn.textContent = '↓ DOWNLOAD ALL';
+  toast(`✓ All ${tracks.length} tracks downloaded!`);
+}
+
+function esc(s)  { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function safe(s) { return (s||'').replace(/[^a-z0-9\s\-]/gi,'').trim(); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+let toastT;
+function toast(msg, err=false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = err ? 'var(--accent2)' : 'var(--accent)';
+  el.style.color = err ? 'var(--accent2)' : 'var(--accent)';
+  el.classList.add('show'); clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('show'), 3500);
+}
+function addLog(msg, cls='') {
+  const el = document.getElementById('log');
+  el.style.display = 'block';
+  el.innerHTML += `<div class="${cls}">&gt; ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+</script>
+</body>
+</html>
